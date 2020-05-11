@@ -4,6 +4,7 @@ from marshmallow import fields
 from marshmallow_sqlalchemy import ModelSchema
 from flask_marshmallow import Marshmallow
 import json
+import copy
 
 with open("secret.json") as f:
     SECRET = json.load(f)
@@ -19,15 +20,16 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config["SQLALCHEMY_DATABASE_URI"] = DB_URI
 db = SQLAlchemy(app)
+ma = Marshmallow(app)
 
 
 class Flower(db.Model):
-    #__tablename__ = "flower"
     id = db.Column(db.Integer, primary_key=True)
     type_of_product = db.Column(db.String(35), unique=False)
     color = db.Column(db.String(35), unique=False)
     height_in_sm = db.Column(db.Integer, unique=False)
     type_of_flower = db.Column(db.String(35), unique=False)
+    price_in_uah = db.Column(db.Integer, unique=False)
 
     def __init__(self, type_of_product=None, color=None, height_in_sm=0, type_of_flower=None, price_in_uah=0):
         self.type_of_product = type_of_product
@@ -41,11 +43,12 @@ class Flower(db.Model):
         db.session.commit()
         return self
 
+
 db.create_all()
 
 
-class FlowerSchema(ModelSchema):
-    class Meta(ModelSchema.Meta):
+class FlowerSchema(ma.Schema):
+    class Meta:
         model = Flower
         sql_session = db.session
 
@@ -63,10 +66,10 @@ many_flower_schemas = FlowerSchema(many=True)
 
 @app.route("/flowers", methods=["GET"])
 def get_all_flowers():
-    get_flowers = Flower.query.all()
-    if not get_flowers:
+    flowers = Flower.query.all()
+    if not flowers:
         abort(404)
-    flowers = many_flower_schemas.dump(get_flowers)
+    flowers = many_flower_schemas.dump(flowers)
     return make_response(jsonify({"flowers": flowers}), 200)
 
 
@@ -81,11 +84,16 @@ def get_flower_by_id(id):
 
 @app.route("/flowers", methods=["POST"])
 def add_flower():
-    data = request.get_json()
-
-    flower = flower_schema.load(data)
-    flowers = flower_schema.dump(flower.create())
-    return make_response(jsonify({"flowers": flowers}), 200)
+    color = request.json['color']
+    height_in_sm = request.json['height_in_sm']
+    type_of_product = request.json['type_of_product']
+    type_of_flower = request.json['type_of_flower']
+    price_in_uah = request.json['price_in_uah']
+    flower = Flower(color=color, height_in_sm=height_in_sm, type_of_product=type_of_product,
+                    type_of_flower=type_of_flower, price_in_uah=price_in_uah)
+    db.session.add(flower)
+    db.session.commit()
+    return flower_schema.jsonify(flower)
 
 
 @app.route("/flowers/<id>", methods=["PUT"])
@@ -93,6 +101,7 @@ def update_flower_by_id(id):
     data = request.get_json()
     get_flower = Flower.query.get(id)
 
+    old_flower = copy.deepcopy(get_flower)
     if data.get("type_of_product"):
         get_flower.type_of_product = data["type_of_product"]
     if data.get("color"):
@@ -106,8 +115,7 @@ def update_flower_by_id(id):
 
     db.session.add(get_flower)
     db.session.commit()
-    flower = flower_schema.dump(get_flower)
-    return make_response(jsonify({"flower": flower}), 200)
+    return flower_schema.jsonify(old_flower)
 
 
 @app.route("/flowers/<id>", methods=["DELETE"])
@@ -121,4 +129,5 @@ def delete_flower_by_id(id):
 
 
 if __name__ == '__main__':
+    db.create_all()
     app.run(debug=True, host="127.0.0.1", port="8080")
