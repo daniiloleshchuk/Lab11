@@ -7,9 +7,5 @@ class Flower(AbstractProduct):
         self.type_of_flower = type_of_flower
 
     def __str__(self):
-        return "Type of product is: " + str(self.type_of_product) + "\n" \
-            "Color is: " + str(self.color) + "\n" \
-            "Height in sm is: " + str(self.height_in_sm) + "\n" \
-            "Price in UAH is: " + str(self.price_in_uah) + "\n" \
-            "Type of flower is: " + str(self.type_of_flower) + "\n"
-
+        return super.__str__(self) + \
+               "Type of flower is: " + str(self.type_of_flower) + "\n"
